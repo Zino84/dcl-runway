@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Runway Calculator — DCL Regenesis Labs</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0e14;
+    --surface: #111620;
+    --surface2: #181f2e;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #e8eaf0;
+    --muted: #6b7280;
+    --accent: #ff2d55;
+    --accent2: #ff6b35;
+    --bear: #ff4444;
+    --base: #3b82f6;
+    --bull: #22c55e;
+    --bear-bg: rgba(255,68,68,0.08);
+    --base-bg: rgba(59,130,246,0.08);
+    --bull-bg: rgba(34,197,94,0.08);
+    --bear-border: rgba(255,68,68,0.25);
+    --base-border: rgba(59,130,246,0.25);
+    --bull-border: rgba(34,197,94,0.25);
+    --font-display: 'Syne', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-display);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,45,85,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,45,85,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Header */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.5rem 0 2.5rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 2.5rem;
+  }
+
+  .logo-area { display: flex; align-items: center; gap: 12px; }
+
+  .logo-mark {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 700; color: white;
+    letter-spacing: -1px;
+  }
+
+  .logo-text { font-size: 13px; font-weight: 600; color: var(--text); letter-spacing: 0.02em; }
+  .logo-sub { font-size: 11px; color: var(--muted); font-family: var(--font-mono); margin-top: 1px; }
+
+  .header-right { text-align: right; }
+  .header-title { font-size: 11px; color: var(--muted); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.1em; }
+  .header-date { font-size: 12px; color: var(--text); font-family: var(--font-mono); margin-top: 2px; }
+
+  /* Loading state */
+  #loading {
+    display: flex; align-items: center; justify-content: center;
+    gap: 10px; padding: 3rem 0; color: var(--muted);
+    font-family: var(--font-mono); font-size: 13px;
+  }
+
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid var(--border2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  #main { display: none; }
+
+  /* Metric cards */
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0,1fr));
+    gap: 10px;
+    margin-bottom: 2rem;
+  }
+
+  .metric {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.1rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .metric::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    opacity: 0.6;
+  }
+
+  .metric .m-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-family: var(--font-mono); margin-bottom: 6px; }
+  .metric .m-value { font-size: 20px; font-weight: 700; color: var(--text); font-family: var(--font-mono); }
+  .metric .m-sub { font-size: 10px; color: var(--muted); margin-top: 3px; font-family: var(--font-mono); }
+
+  /* Section label */
+  .section-label {
+    font-size: 10px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: 0.12em; font-family: var(--font-mono);
+    margin-bottom: 0.75rem; margin-top: 2rem;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section-label::after {
+    content: ''; flex: 1; height: 1px; background: var(--border);
+  }
+
+  /* Scenario controls */
+  .scenarios {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0,1fr));
+    gap: 12px;
+    margin-bottom: 1.5rem;
+  }
+
+  .scenario-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.1rem 1.2rem;
+    transition: border-color 0.2s;
+  }
+
+  .scenario-card.bear { border-top: 2px solid var(--bear); }
+  .scenario-card.base { border-top: 2px solid var(--base); }
+  .scenario-card.bull { border-top: 2px solid var(--bull); }
+
+  .s-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 1rem;
+  }
+
+  .s-badge {
+    font-size: 10px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.1em; font-family: var(--font-mono);
+    padding: 3px 8px; border-radius: 4px;
+  }
+
+  .bear .s-badge { background: var(--bear-bg); color: var(--bear); border: 1px solid var(--bear-border); }
+  .base .s-badge { background: var(--base-bg); color: var(--base); border: 1px solid var(--base-border); }
+  .bull .s-badge { background: var(--bull-bg); color: var(--bull); border: 1px solid var(--bull-border); }
+
+  .s-runway-pill {
+    font-size: 12px; font-weight: 600; font-family: var(--font-mono);
+    padding: 3px 10px; border-radius: 20px;
+  }
+
+  .bear .s-runway-pill { background: var(--bear-bg); color: var(--bear); }
+  .base .s-runway-pill { background: var(--base-bg); color: var(--base); }
+  .bull .s-runway-pill { background: var(--bull-bg); color: var(--bull); }
+
+  .ctrl { margin-bottom: 10px; }
+  .ctrl:last-child { margin-bottom: 0; }
+
+  .ctrl-top {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 4px;
+  }
+
+  .ctrl-top label { font-size: 11px; color: var(--muted); font-family: var(--font-mono); }
+  .ctrl-top .ctrl-val { font-size: 11px; font-weight: 500; color: var(--text); font-family: var(--font-mono); }
+
+  input[type=range] {
+    width: 100%; height: 3px; appearance: none;
+    background: var(--border2); border-radius: 2px; outline: none; cursor: pointer;
+  }
+
+  .bear input[type=range]::-webkit-slider-thumb { appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--bear); cursor: pointer; }
+  .base input[type=range]::-webkit-slider-thumb { appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--base); cursor: pointer; }
+  .bull input[type=range]::-webkit-slider-thumb { appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--bull); cursor: pointer; }
+
+  /* Results */
+  .results {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0,1fr));
+    gap: 12px;
+    margin-bottom: 1.5rem;
+  }
+
+  .result-card {
+    border-radius: 12px;
+    padding: 1.1rem 1.2rem;
+    border: 1px solid;
+  }
+
+  .result-card.bear { background: var(--bear-bg); border-color: var(--bear-border); }
+  .result-card.base { background: var(--base-bg); border-color: var(--base-border); }
+  .result-card.bull { background: var(--bull-bg); border-color: var(--bull-border); }
+
+  .r-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    font-size: 12px;
+  }
+  .r-row:last-child { border-bottom: none; padding-bottom: 0; }
+
+  .r-label { color: var(--muted); font-family: var(--font-mono); }
+  .r-val { font-weight: 500; color: var(--text); font-family: var(--font-mono); }
+
+  .r-row.big .r-label { font-size: 11px; }
+  .r-row.big .r-val { font-size: 18px; font-weight: 700; }
+  .bear .r-row.big .r-val { color: var(--bear); }
+  .base .r-row.big .r-val { color: var(--base); }
+  .bull .r-row.big .r-val { color: var(--bull); }
+
+  /* Chart */
+  .chart-container {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .chart-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 1.25rem;
+  }
+
+  .chart-title { font-size: 12px; color: var(--muted); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; }
+
+  .chart-legend {
+    display: flex; gap: 16px;
+  }
+
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); font-family: var(--font-mono); }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  .chart-wrap { position: relative; height: 200px; }
+
+  /* Footer */
+  footer {
+    border-top: 1px solid var(--border);
+    padding-top: 1.5rem;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+
+  .footer-note { font-size: 11px; color: var(--muted); font-family: var(--font-mono); line-height: 1.6; }
+  .footer-tag { font-size: 10px; color: var(--muted); font-family: var(--font-mono); opacity: 0.5; }
+
+  @media (max-width: 640px) {
+    .metrics { grid-template-columns: repeat(2, 1fr); }
+    .scenarios { grid-template-columns: 1fr; }
+    .results { grid-template-columns: 1fr; }
+    header { flex-direction: column; align-items: flex-start; gap: 1rem; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="logo-area">
+      <div class="logo-mark">RL</div>
+      <div>
+        <div class="logo-text">DCL Regenesis Labs</div>
+        <div class="logo-sub">Treasury · Runway Analysis</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="header-title">Last updated</div>
+      <div class="header-date" id="last-updated">—</div>
+    </div>
+  </header>
+
+  <div id="loading">
+    <div class="spinner"></div>
+    Fetching treasury data...
+  </div>
+
+  <div id="main">
+
+    <div class="metrics">
+      <div class="metric">
+        <div class="m-label">MANA price</div>
+        <div class="m-value" id="m-price">—</div>
+        <div class="m-sub">Live from sheet</div>
+      </div>
+      <div class="metric">
+        <div class="m-label">MANA total</div>
+        <div class="m-value" id="m-mana">—</div>
+        <div class="m-sub">Op wallet + treasury</div>
+      </div>
+      <div class="metric">
+        <div class="m-label">Stablecoins</div>
+        <div class="m-value" id="m-stables">—</div>
+        <div class="m-sub">USDC / USDT vaults</div>
+      </div>
+      <div class="metric">
+        <div class="m-label">Monthly burn</div>
+        <div class="m-value" id="m-burn">—</div>
+        <div class="m-sub">Budget / 11 months</div>
+      </div>
+    </div>
+
+    <div class="section-label">Scenario parameters</div>
+
+    <div class="scenarios">
+      <div class="scenario-card bear">
+        <div class="s-header">
+          <span class="s-badge">Bear</span>
+          <span class="s-runway-pill" id="bear-pill">—</span>
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-top">
+            <label>MANA price</label>
+            <span class="ctrl-val" id="bear-price-val">$0.050</span>
+          </div>
+          <input type="range" id="bear-price" min="0.03" max="0.25" step="0.005" value="0.05">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-top">
+            <label>MANA to sell</label>
+            <span class="ctrl-val" id="bear-mana-val">5.0M</span>
+          </div>
+          <input type="range" id="bear-mana" min="0" max="17430316" step="100000" value="5000000">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-top">
+            <label>Monthly burn</label>
+            <span class="ctrl-val" id="bear-burn-val">$185K</span>
+          </div>
+          <input type="range" id="bear-burn" min="50000" max="400000" step="5000" value="185000">
+        </div>
+      </div>
+
+      <div class="scenario-card base">
+        <div class="s-header">
+          <span class="s-badge">Base</span>
+          <span class="s-runway-pill" id="base-pill">—</span>
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-top">
+            <label>MANA price</label>
+            <span class="ctrl-val" id="base-price-val">$0.083</span>
+          </div>
+          <input type="range" id="base-price" min="0.03" max="0.25" step="0.005" value="0.083">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-top">
+            <label>MANA to sell</label>
+            <span class="ctrl-val" id="base-mana-val">8.0M</span>
+          </div>
+          <input type="range" id="base-mana" min="0" max="17430316" step="100000" value="8000000">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-top">
+            <label>Monthly burn</label>
+            <span class="ctrl-val" id="base-burn-val">$185K</span>
+          </div>
+          <input type="range" id="base-burn" min="50000" max="400000" step="5000" value="185000">
+        </div>
+      </div>
+
+      <div class="scenario-card bull">
+        <div class="s-header">
+          <span class="s-badge">Bull</span>
+          <span class="s-runway-pill" id="bull-pill">—</span>
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-top">
+            <label>MANA price</label>
+            <span class="ctrl-val" id="bull-price-val">$0.180</span>
+          </div>
+          <input type="range" id="bull-price" min="0.03" max="0.25" step="0.005" value="0.18">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-top">
+            <label>MANA to sell</label>
+            <span class="ctrl-val" id="bull-mana-val">6.0M</span>
+          </div>
+          <input type="range" id="bull-mana" min="0" max="17430316" step="100000" value="6000000">
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-top">
+            <label>Monthly burn</label>
+            <span class="ctrl-val" id="bull-burn-val">$185K</span>
+          </div>
+          <input type="range" id="bull-burn" min="50000" max="400000" step="5000" value="185000">
+        </div>
+      </div>
+    </div>
+
+    <div class="section-label">Results</div>
+
+    <div class="results">
+      <div class="result-card bear">
+        <div class="r-row big">
+          <span class="r-label">Runway</span>
+          <span class="r-val" id="bear-runway">—</span>
+        </div>
+        <div class="r-row">
+          <span class="r-label">Until</span>
+          <span class="r-val" id="bear-until">—</span>
+        </div>
+        <div class="r-row">
+          <span class="r-label">MANA proceeds</span>
+          <span class="r-val" id="bear-proceeds">—</span>
+        </div>
+        <div class="r-row">
+          <span class="r-label">Total available</span>
+          <span class="r-val" id="bear-total">—</span>
+        </div>
+        <div class="r-row">
+          <span class="r-label">MANA remaining</span>
+          <span class="r-val" id="bear-left">—</span>
+        </div>
+      </div>
+
+      <div class="result-card base">
+        <div class="r-row big">
+          <span class="r-label">Runway</span>
+          <span class="r-val" id="base-runway">—</span>
+        </div>
+        <div class="r-row">
+          <span class="r-label">Until</span>
+          <span class="r-val" id="base-until">—</span>
+        </div>
+        <div class="r-row">
+          <span class="r-label">MANA proceeds</span>
+          <span class="r-val" id="base-proceeds">—</span>
+        </div>
+        <div class="r-row">
+          <span class="r-label">Total available</span>
+          <span class="r-val" id="base-total">—</span>
+        </div>
+        <div class="r-row">
+          <span class="r-label">MANA remaining</span>
+          <span class="r-val" id="base-left">—</span>
+        </div>
+      </div>
+
+      <div class="result-card bull">
+        <div class="r-row big">
+          <span class="r-label">Runway</span>
+          <span class="r-val" id="bull-runway">—</span>
+        </div>
+        <div class="r-row">
+          <span class="r-label">Until</span>
+          <span class="r-val" id="bull-until">—</span>
+        </div>
+        <div class="r-row">
+          <span class="r-label">MANA proceeds</span>
+          <span class="r-val" id="bull-proceeds">—</span>
+        </div>
+        <div class="r-row">
+          <span class="r-label">Total available</span>
+          <span class="r-val" id="bull-total">—</span>
+        </div>
+        <div class="r-row">
+          <span class="r-label">MANA remaining</span>
+          <span class="r-val" id="bull-left">—</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="chart-container">
+      <div class="chart-header">
+        <div class="chart-title">Runway comparison (months)</div>
+        <div class="chart-legend">
+          <div class="legend-item"><div class="legend-dot" style="background:var(--bear)"></div>Bear</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--base)"></div>Base</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--bull)"></div>Bull</div>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="chart"></canvas>
+      </div>
+    </div>
+
+    <footer>
+      <div class="footer-note">
+        Stablecoins: $2,136,116 fixed · MANA total: 17,430,316<br>
+        MANA price fetched live from Treasury Dashboard
+      </div>
+      <div class="footer-tag">DCL Regenesis Labs · Confidential</div>
+    </footer>
+
+  </div>
+</div>
+
+<script>
+const API_URL = 'https://script.google.com/macros/s/AKfycbyKS-b0GMT34_nvtA7OdbL2uAwS2tcNd_d2B538sOXTVJLPTAYBCgb6h3vcJjuB1p-q/exec?token=dcl-runway-2026';
+
+let chart;
+let DATA = {};
+
+function fmt(n) {
+  if (n >= 1e6) return '$' + (n/1e6).toFixed(2) + 'M';
+  if (n >= 1e3) return '$' + Math.round(n/1000) + 'K';
+  return '$' + Math.round(n).toLocaleString();
+}
+
+function fmtM(n) { return (n/1e6).toFixed(1) + 'M'; }
+
+function addMonths(n) {
+  const d = new Date();
+  d.setMonth(d.getMonth() + Math.round(n));
+  return d.toLocaleDateString('en', { month: 'short', year: 'numeric' });
+}
+
+function calc(price, manaToSell, burn) {
+  const proceeds = manaToSell * price;
+  const total = DATA.stablecoins + proceeds;
+  const runway = total / burn;
+  const manaLeft = DATA.total_mana - manaToSell;
+  return { proceeds, total, runway, manaLeft };
+}
+
+function update() {
+  const s = ['bear', 'base', 'bull'];
+  const runways = [];
+
+  s.forEach(id => {
+    const price = parseFloat(document.getElementById(id+'-price').value);
+    const mana  = parseFloat(document.getElementById(id+'-mana').value);
+    const burn  = parseFloat(document.getElementById(id+'-burn').value);
+
+    document.getElementById(id+'-price-val').textContent = '$' + price.toFixed(3);
+    document.getElementById(id+'-mana-val').textContent  = fmtM(mana);
+    document.getElementById(id+'-burn-val').textContent  = '$' + Math.round(burn/1000) + 'K';
+
+    const r = calc(price, mana, burn);
+    runways.push(Math.round(r.runway));
+
+    document.getElementById(id+'-pill').textContent    = Math.round(r.runway) + ' mo';
+    document.getElementById(id+'-runway').textContent  = Math.round(r.runway) + ' months';
+    document.getElementById(id+'-until').textContent   = addMonths(r.runway);
+    document.getElementById(id+'-proceeds').textContent = fmt(r.proceeds);
+    document.getElementById(id+'-total').textContent   = fmt(r.total);
+    document.getElementById(id+'-left').textContent    = fmtM(r.manaLeft) + ' MANA';
+  });
+
+  updateChart(runways);
+}
+
+function updateChart(runways) {
+  if (chart) {
+    chart.data.datasets[0].data = runways;
+    chart.update('none');
+    return;
+  }
+
+  chart = new Chart(document.getElementById('chart'), {
+    type: 'bar',
+    data: {
+      labels: ['Bear', 'Base', 'Bull'],
+      datasets: [{
+        data: runways,
+        backgroundColor: ['rgba(255,68,68,0.7)', 'rgba(59,130,246,0.7)', 'rgba(34,197,94,0.7)'],
+        borderColor: ['#ff4444', '#3b82f6', '#22c55e'],
+        borderWidth: 1,
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#181f2e',
+          borderColor: 'rgba(255,255,255,0.1)',
+          borderWidth: 1,
+          titleColor: '#6b7280',
+          bodyColor: '#e8eaf0',
+          bodyFont: { family: 'DM Mono', size: 13 },
+          callbacks: { label: ctx => '  ' + ctx.parsed.y + ' months' }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: { color: '#6b7280', font: { family: 'DM Mono', size: 11 }, stepSize: 3 },
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          border: { color: 'transparent' }
+        },
+        x: {
+          ticks: { color: '#e8eaf0', font: { family: 'DM Mono', size: 12 } },
+          grid: { display: false },
+          border: { color: 'rgba(255,255,255,0.07)' }
+        }
+      }
+    }
+  });
+}
+
+function init(data) {
+  DATA = {
+    mana_price:   data.mana_price,
+    mana_op:      data.mana_op,
+    mana_treasury: data.mana_treasury,
+    total_mana:   data.mana_op + data.mana_treasury,
+    stablecoins:  data.stablecoins,
+    monthly_burn: data.monthly_burn,
+  };
+
+  document.getElementById('last-updated').textContent = data.last_updated;
+  document.getElementById('m-price').textContent  = '$' + DATA.mana_price.toFixed(4);
+  document.getElementById('m-mana').textContent   = fmtM(DATA.total_mana);
+  document.getElementById('m-stables').textContent = fmt(DATA.stablecoins);
+  document.getElementById('m-burn').textContent   = fmt(DATA.monthly_burn) + '/mo';
+
+  document.getElementById('base-price').value = DATA.mana_price.toFixed(3);
+
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('main').style.display = 'block';
+
+  ['bear','base','bull'].forEach(id => {
+    ['price','mana','burn'].forEach(f => {
+      document.getElementById(id+'-'+f).addEventListener('input', update);
+    });
+  });
+
+  update();
+}
+
+fetch(API_URL)
+  .then(r => r.json())
+  .then(data => {
+    if (data.error) throw new Error(data.error);
+    init(data);
+  })
+  .catch(err => {
+    document.getElementById('loading').innerHTML =
+      '<span style="color:#ff4444;font-family:DM Mono,monospace;font-size:12px;">Error fetching data: ' + err.message + ' — check Apps Script deployment</span>';
+  });
+</script>
+</body>
+</html>
